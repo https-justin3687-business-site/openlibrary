@@ -12,7 +12,7 @@ from openlibrary.catalog.add_book import load
 from openlibrary import accounts
 
 BETTERWORLDBOOKS_BASE_URL = 'https://betterworldbooks.com'
-BETTERWORLDBOOKS_API_URL = 'https://products.betterworldbooks.com/service.aspx?ItemId='
+BETTERWORLDBOOKS_API_URL = 'https://products.betterworldbooks.com/service.aspx?IncludeAmazon=True&ItemId='
 BWB_AFFILIATE_LINK = 'http://www.anrdoezrs.net/links/{}/type/dlg/http://www.betterworldbooks.com/-id-%s'.format(h.affiliate_id('betterworldbooks'))
 AMAZON_FULL_DATE_RE = re.compile(r'\d{4}-\d\d-\d\d')
 ISBD_UNIT_PUNCT = ' : '  # ISBD cataloging title-unit separator punctuation
@@ -31,7 +31,7 @@ def get_amazon_metadata(id_, id_type='isbn'):
         if id_:
             return cached_get_amazon_metadata(id_, id_type=id_type)
     except Exception:
-        return None
+        return {}
 
 
 def search_amazon(title='', author=''):
@@ -319,7 +319,7 @@ def _get_betterworldbooks_metadata(isbn):
     new_price = re.findall(r"<LowestNewPrice>\$([0-9.]+)</LowestNewPrice>", response)
     used_price = re.findall(r"<LowestUsedPrice>\$([0-9.]+)</LowestUsedPrice>", response)
     used_qty = re.findall("<TotalUsed>([0-9]+)</TotalUsed>", response)
-
+    market_price = re.findall(r"<LowestMarketPrice>\$([0-9.]+)</LowestMarketPrice>", response)
     price = qlt = None
 
     if used_qty and used_qty[0] and used_qty[0] != '0':
@@ -332,21 +332,24 @@ def _get_betterworldbooks_metadata(isbn):
             price = _price
             qlt = 'new'
 
-    return betterworldbooks_fmt(isbn, qlt, price)
+    market_price = market_price and '$' + market_price[0]
+
+    return betterworldbooks_fmt(isbn, qlt, price, market_price)
 
 
-def betterworldbooks_fmt(isbn, qlt=None, price=None):
+def betterworldbooks_fmt(isbn, qlt=None, price=None, market_price=None):
     """Defines a standard interface for returning bwb price info
 
     :param str isbn:
     :param str qlt: Quality of the book, e.g. "new", "used"
     :param str price: Price of the book as a decimal str, e.g. "4.28"
-    :rtype: dict 
+    :rtype: dict
     """
     price_fmt = "$%s (%s)" % (price, qlt) if price and qlt else None
     return {
         'url': BWB_AFFILIATE_LINK % isbn,
         'isbn': isbn,
+        'market_price': market_price,
         'price': price_fmt,
         'price_amt': price,
         'qlt': qlt
